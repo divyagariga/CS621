@@ -6,12 +6,13 @@ import re
 import os
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///db.db'
-app.config['SECRET_KEY'] = os.urandom(24)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///db.db')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.urandom(24))
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
+login_manager.login_view = 'login'
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
@@ -43,7 +44,14 @@ def check_password_strength(password):
 
     return messages
 
-@app.route('/', methods=['GET'])
+@app.route('/')
+def index():
+    if current_user.is_authenticated:
+        return redirect('/home')
+    else:
+        return redirect('/login')
+
+@app.route('/home', methods=['GET'])
 @login_required
 def get_home():
     return render_template('home.html')
@@ -86,7 +94,7 @@ def signup():
             flash('Email address already used!')
             return render_template('signup.html')
         
-        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256', salt_length=16)
         user = User(first_name=first_name, last_name=last_name, email=email, password=hashed_password)
         db.session.add(user)
         db.session.commit()
